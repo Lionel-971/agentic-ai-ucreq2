@@ -230,6 +230,7 @@ Each per-use-case requirement is tagged with one or more of the following protoc
 | CMN-9 | The protocol is required to support signaling that a presented credential has been revoked or is otherwise invalid. | Security |
 | CMN-10 | The protocol is required to support revoking a previously granted authorization, including propagating the revocation across a delegation chain so that affected agents cease to act under it. | Security |
 | CMN-11 | The protocol is required to support establishment, modification, and termination of a dialog, distinct from cancellation of a delegated subtask within the dialog. Modification includes changes to the participants, modalities, or lifetime of the dialog. The protocol is required to support a dialog lifetime, after which the dialog is terminated. | Dialog |
+| CMN-12 | Before accepting a change to a dialog, a participant is required to be able to verify that the change is authorized at that time. If it cannot verify this, it is required to reject the change and signal the reason. | Dialog, Security |
 
 ## Network-Layer Assumptions {#network-assumptions}
 
@@ -335,6 +336,14 @@ dialog context across network interruptions, so that a reconnecting
 agent can re-associate with the dialog and use it to restore its own
 task context without reconstructing it from scratch.
 
+If a dialog is interrupted before the result of an operation reaches
+the delegating agent, the operation may or may not have completed.
+Resuming the dialog does not tell the delegating agent which. Before
+resending the operation, the delegating agent checks its outcome with
+the delegated agent or tool that performed it. If the outcome cannot be
+determined, the operation remains unresolved, and resuming the dialog
+alone does not justify resending it.
+
 This pattern is described in [ROSENBERG] and reflected in [A2A],
 and is implemented in deployed multi-agent frameworks including
 [AUTOGEN], [LANGCHAIN], and [OPENAI-AGENTS].
@@ -363,7 +372,8 @@ and is implemented in deployed multi-agent frameworks including
 | B1-4  | The protocol is required to support streaming of intermediate results from the agent to the orchestrator during task execution. | Transport |
 | B1-5  | The protocol is required to define a task cancellation message that the orchestrator can send to an agent to abort a delegated subtask. | Transport |
 | B1-6  | The protocol is required to support persistent dialog identifiers that survive network interruption or change, and is required to define a dialog resumption message by which an agent re-attaches to an interrupted dialog, restoring the prior dialog context. | Dialog |
-| B1-7  | On resumption, the protocol is required to enable the receiving participant to verify that the party resuming the dialog is the participant whose exchange was interrupted, and that the dialog has not been terminated or its authorization revoked. If either check fails, the dialog is not resumed and the failure is signaled. | Dialog, Security |
+| B1-7  | On resumption, the protocol is required to enable the receiving participant to verify that (1) the party resuming the dialog is the participant whose exchange was interrupted, (2) the dialog context presented is the current state of that dialog, and (3) the dialog has not been terminated and its authorization has not been revoked. | Dialog, Security |
+| B1-8  | If any check in B1-7 fails or cannot be completed, the dialog is not resumed and the protocol is required to signal the reason. | Dialog, Security |
 
 ## Long-Running Delegated Task with Authorization Checkpoint {#authz-checkpoint}
 
@@ -592,7 +602,7 @@ in [MCP] and the agent routing patterns discussed in [A2A].
 
 # Relationship to OAuth and WIMSE Work {#relationship-oauth-wimse}
 
-Several requirements in this document concern authorization, delegation, and agent identity (CMN-4, CMN-8, CMN-9, CMN-10, B1-7, B2-2 to B2-6, B3-1 to B3-4, B3-10, B3-11, B3-12). These are expected to be addressed in the OAuth and WIMSE Working Groups.
+Several requirements in this document concern authorization, delegation, and agent identity (CMN-4, CMN-8, CMN-9, CMN-10, CMN-12, B1-7, B1-8, B2-2 to B2-6, B3-1 to B3-4, B3-10, B3-11, B3-12). These are expected to be addressed in the OAuth and WIMSE Working Groups.
 
 
 # Accountability and Auditing {#accountability-auditing}
@@ -629,4 +639,4 @@ This document has no IANA actions.
 # Acknowledgements
 {:numbered="false"}
 
-Thanks to Borislava Gajic, Julien Maisonneuve, Parisa Foroughi, Laurent Ciavaglia, Nathalie Romo Moreno, Peter Leis, Linda Dunbar, Mikhail Sergeev, Iman Schrock, Sumit Ahuja and Sina Khatibi for the discussions and comments.
+Thanks to Borislava Gajic, Julien Maisonneuve, Parisa Foroughi, Laurent Ciavaglia, Nathalie Romo Moreno, Peter Leis, Linda Dunbar, Mikhail Sergeev, Iman Schrock, Sumit Ahuja, Sina Khatibi, Vaishnavi Gudur, Lars Kersten Kroehl, Girish Konda, Nikhil Donapati, Nicholas Templeman and Bradley B for the discussions and comments.
