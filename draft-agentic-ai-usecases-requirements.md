@@ -372,7 +372,7 @@ and is implemented in deployed multi-agent frameworks including
 | B1-5  | The protocol is required to define a task cancellation message that the orchestrator can send to an agent to abort a delegated subtask. | Transport |
 | B1-6  | The protocol is required to support persistent dialog identifiers that survive network interruption or change, and is required to define a dialog resumption message by which an agent re-attaches to an interrupted dialog, restoring the prior dialog context. | Dialog |
 | B1-7  | On resumption, the protocol is required to enable the receiving participant to verify that (1) the party resuming the dialog is the participant whose exchange was interrupted, (2) the dialog context presented is the current state of that dialog, and (3) the dialog has not been terminated and its authorization has not been revoked. | Dialog, Security |
-| B1-8  | If any check in B1-7 fails or cannot be completed, the dialog is not resumed and the protocol is required to signal the reason. The receiving participant is required to be able to determine which of the two cases occurred. | Dialog, Security |
+| B1-8  | If any check in B1-7 fails or cannot be completed, the dialog is not resumed and the protocol is required to signal the reason. The receiving participant is required to be able to determine whether the check failed or could not be completed. | Dialog, Security |
 
 ## Long-Running Delegated Task with Authorization Checkpoint {#authz-checkpoint}
 
