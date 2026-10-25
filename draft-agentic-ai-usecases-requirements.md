@@ -45,9 +45,19 @@ informative:
     title: "Agentic AI Use Cases"
     target: https://datatracker.ietf.org/doc/draft-scrm-aiproto-usecases
 
-  ROSENBERG:
-    title: "Framework, Use Cases and Requirements for AI Agent Protocols"
-    target: https://datatracker.ietf.org/doc/draft-rosenberg-agentproto-usecases
+  COSCIENTIST:
+    title: "Accelerating scientific discovery with Co-Scientist"
+    author:
+      - org: Google DeepMind
+    target: https://arxiv.org/abs/2502.18864
+
+  TR23801-01:
+    title: "Study on Architecture for 6G System"
+    author:
+      - org: 3GPP
+    target: https://www.3gpp.org/ftp/Specs/archive/23_series/23.801-01/
+    seriesinfo:
+      3GPP: TR 23.801-01 v0.9.0
 
   YAO:
     title: "Problem Space Analysis of AI Agent Protocols in IETF"
@@ -108,7 +118,7 @@ application-to-service invocation.
 The use cases in this document cover interaction patterns for
 agentic AI communication systems. This document takes into account
 related use case and problem statement documents including [SCRM],
-[YAO], [SONG], and [ROSENBERG], and existing protocol work including
+[YAO], and [SONG], and existing protocol work including
 [A2A] and [MCP].
 
 # Terminology {#terminology}
@@ -276,7 +286,7 @@ the user communicates with the agent via a client application;
 direct communication between a user and an agent without an
 intermediary client application is not covered in this use case.
 
-This interaction pattern is described in [ROSENBERG] and [SCRM].
+This interaction pattern is described in [SCRM].
 
 ### Interaction Flow
 
@@ -291,6 +301,43 @@ This interaction pattern is described in [ROSENBERG] and [SCRM].
                                           | Tool(s) |
                                           +---------+
 ~~~
+
+### Example
+
+A user books a flight through a travel booking app. The app is the
+client application. It sends the user's request to a travel agent run
+by the travel company that provides the app. The agent uses two
+tools: a fare search tool run by the travel company, and a booking
+tool run by an airline, in a different administrative domain.
+
+~~~
++------------+      +--------------+      +----------------+
+| Travel app |<---->| Travel agent |----->| Fare search    |
+|            |      |              |      | (travel co.)   |
++------------+      +--------------+      +----------------+
+                           |
+                           |              +----------------+
+                           +------------->| Flight booking |
+                                          | (airline)      |
+                                          +----------------+
+~~~
+
+1. The app establishes a dialog with the agent and asks for a flight on
+   a given route and date (CMN-11).
+
+2. The agent queries the fare search tool and returns matching flights
+   to the app.
+
+3. The user picks a flight. The agent calls the airline's booking
+   tool with a credential showing that the user authorized the
+   booking, without the user's airline credentials (A1-9).
+
+4. The agent returns the booking confirmation, and the app terminates
+   the dialog (CMN-11).
+
+If the user abandons a search before step 3, the app cancels that task
+(A1-2). The dialog continues, and the user can start a new search in
+it without starting over.
 
 ### Protocol Requirements {#a1-protocol-requirements}
 
@@ -343,7 +390,7 @@ the delegated agent or tool that performed it. If the outcome cannot be
 determined, the operation remains unresolved, and resuming the dialog
 alone does not justify resending it.
 
-This pattern is described in [ROSENBERG] and reflected in [A2A],
+This pattern is reflected in [A2A],
 and is implemented in deployed multi-agent frameworks including
 [AUTOGEN], [LANGCHAIN], and [OPENAI-AGENTS].
 
@@ -360,6 +407,43 @@ and is implemented in deployed multi-agent frameworks including
 |                     |<--Result Reporting-----|            |
 +---------------------+                        +------------+
 ~~~
+
+### Example
+
+A user asks a trip planning agent, the orchestrator, to arrange a
+business trip. The orchestrator delegates the flight booking to a
+flight agent and the hotel booking to a hotel agent. Both agents are
+run by different providers.
+
+~~~
++--------------+      +--------------+
+|              |----->| Flight agent |
+| Trip planner |      +--------------+
+| (orchestr.)  |
+|              |      +--------------+
+|              |----->| Hotel agent  |
++--------------+      +--------------+
+~~~
+
+1. The orchestrator establishes a dialog with each agent and delegates
+   both subtasks without waiting for either to finish (B1-1, B1-2).
+
+2. The flight agent streams fare options and reports the booked
+   flight (B1-4, B1-3).
+
+3. The orchestrator sends the hotel agent a request to book a room.
+   The hotel agent books the room, but the connection drops before its
+   confirmation reaches the orchestrator.
+
+4. The orchestrator reconnects and resumes the dialog with the hotel
+   agent (B1-6). The hotel agent verifies that the orchestrator is
+   the participant whose exchange was interrupted, and that the dialog
+   is current and still authorized (B1-7).
+
+5. Instead of sending the booking request again, which could book a
+   second room, the orchestrator asks the hotel agent for the outcome
+   of its request. It learns that the room was booked and uses that
+   booking.
 
 ### Protocol Requirements {#b1-protocol-requirements}
 
@@ -400,6 +484,38 @@ defined in [A2A].
 +---------------------+                        +------------+
 ~~~
 
+### Example
+
+A user asks a banking assistant, the orchestrator, to close an
+account. The orchestrator delegates the closure to an account closure
+agent, which runs a workflow that can take several days.
+
+~~~
++------------+      +--------------+      +---------------+
+|    User    |<---->|   Banking    |<---->| Account       |
+|            |      |  assistant   |      | closure agent |
++------------+      +--------------+      +---------------+
+~~~
+
+1. The orchestrator establishes a dialog with the closure agent and
+   delegates the closure. The dialog lasts for the whole workflow.
+
+2. The closure agent cancels the account's standing payments and
+   closes the linked debit card. After each step it sends the
+   orchestrator a progress notification, such as "standing payments
+   cancelled" (B2-1).
+
+3. Before transferring the remaining balance, the closure agent
+   pauses and sends an authorization checkpoint request stating the
+   amount and the destination account (B2-2, B2-6).
+
+4. The orchestrator relays the request to the user, who approves it
+   (B2-3). The approval covers only this transfer (B2-5).
+
+5. The closure agent completes the transfer and reports the result.
+   If no response had arrived before the timeout, it would have
+   halted the transfer and treated the request as unresolved (B2-4).
+
 ### Additional Protocol Requirements {#b2-protocol-requirements}
 
 This use case builds on the requirements defined for {{orchestrator-agent}}
@@ -432,7 +548,7 @@ present in {{orchestrator-agent}}. Each agent in the chain may
 delegate further to other agents, and authorization scope is required
 to be progressively constrained at each hop.
 
-This use case is described in [A2A] and [ROSENBERG].
+This use case is described in [A2A].
 
 ### Interaction Flow
 
@@ -452,6 +568,48 @@ This use case is described in [A2A] and [ROSENBERG].
  +--------+  +--------+
 ~~~
 
+### Example
+
+A hiring manager asks a company's hiring agent to find candidates for
+a job listing. The hiring agent delegates sourcing to a recruitment
+agency's sourcing agent. The sourcing agent searches a job board tool
+and delegates screening of the results to a screening agent, which
+assesses each candidate against the listing. The hiring agent later
+delegates interviews to a scheduling agent. Each agent is run by a
+different provider, in its own administrative domain.
+
+~~~
++--------+    +----------+    +-----------+
+| Hiring |--->| Sourcing |--->| Screening |
+| agent  |    |  agent   |    |   agent   |
++--------+    +----------+    +-----------+
+    |              |
+    v              v
++------------+  +-----------+
+| Scheduling |  | Job board |
+|   agent    |  |   tool    |
++------------+  +-----------+
+~~~
+
+1. The hiring agent establishes a dialog with the sourcing agent and
+   delegates the search, with an authorization limited to this job
+   listing (B3-1).
+
+2. The sourcing agent searches the job board tool, then delegates
+   screening to the screening agent. Because the screening agent is in
+   another domain, the sourcing agent creates a new dialog linked to
+   the one it received (B3-9). It passes an authorization narrowed to
+   reading the candidate profiles for this listing (B3-1, B3-8). The
+   screening agent can determine that the hiring manager originally
+   authorized the task (B3-2).
+
+3. If the screening agent becomes unavailable, the sourcing agent
+   detects this and halts that subtask (B3-5).
+
+4. The hiring manager picks candidates, and the hiring agent delegates
+   interview scheduling to the scheduling agent, in a new dialog
+   linked to the first.
+
 ### Additional Protocol Requirements {#b3-protocol-requirements}
 
 This use case builds on the requirements defined for {{orchestrator-agent}}
@@ -467,7 +625,7 @@ and introduces additional requirements specific to multi-hop delegation chains.
 | B3-6 | The protocol is required to provide a verifiable provenance record of a request and its response as they traverse the delegation chain, attributing each transformation to the hop that performed it, such that removal of a hop, or a modification not attributable to a signing hop, is detectable. | Authentication, Security |
 | B3-7 | The protocol is required to enable a receiving party to detect and reject a delegation chain that contains a cycle, such as a chain in which the receiving party's own identifier already appears. | Authentication, Security |
 | B3-8 | The protocol is required to enable a receiving party to determine that the authority conveyed to it does not exceed the authority conveyed to the hop it received from. | Authentication, Security |
-| B3-9 | The protocol is required to propagate the dialog context across each hop of a delegation chain, so that participants can correlate interactions along the chain. | Dialog |
+| B3-9 | The protocol is required to propagate the dialog context across each hop of a delegation chain, so that participants can correlate interactions along the chain. A participant may instead create a new dialog, with a new dialog context, linked to the one it received. | Dialog |
 
 ## Cooperative Reasoning and Consensus Formation {#cooperative-reasoning}
 
@@ -520,6 +678,39 @@ The direct agent-to-agent topology:
                |___________________________|
 ~~~
 
+### Example
+
+A research team uses a multi-agent research assistant [COSCIENTIST] to
+propose hypotheses for a research goal. A supervisor agent, acting as
+the coordinator, distributes the goal to generation agents that
+propose hypotheses, a reflection agent that reviews them, and a
+ranking agent that ranks them.
+
+~~~
+                 +------------------+
+                 | Supervisor agent |
+                 +------------------+
+                  /       |        \
+                 v        v         v
+        +------------+ +------------+ +---------+
+        | Generation | | Reflection | | Ranking |
+        |   agents   | |   agent    | |  agent  |
+        +------------+ +------------+ +---------+
+~~~
+
+1. The supervisor establishes a dialog with the agents and distributes
+   the research goal to them (B4-1).
+
+2. The generation agents propose hypotheses independently.
+
+3. The reflection agent reviews each hypothesis, and the ranking agent
+   ranks them. The supervisor shares the results with all agents for
+   the next round (B4-1).
+
+4. After several rounds, the supervisor returns the top-ranked
+   hypotheses to the research team and terminates the dialog
+   (CMN-11).
+
 ### Additional Protocol Requirements {#b4-protocol-requirements}
 
 This use case builds on the requirements defined for {{orchestrator-agent}}
@@ -562,6 +753,11 @@ cause unintended or irreversible side effects.
 
 Note that mediating can be a function within an orchestrator.
 
+The mediator can be deployed as a proxy between an agent and its
+tools, such as an MCP proxy. The 3GPP 6G architecture study
+[TR23801-01] describes it as an agent gateway through which
+third-party agents use network agents.
+
 This pattern is reflected in the MCP server architecture defined
 in [MCP] and the agent routing patterns discussed in [A2A].
 
@@ -583,6 +779,30 @@ in [MCP] and the agent routing patterns discussed in [A2A].
 +--------+ +---------+  +--------+
 ~~~
 
+### Example
+
+A mobile network operator runs an agent gateway through which
+authorized third-party agents use network agents. A concert organizer's agent asks for extra network
+capacity at the venue during the concert.
+
+~~~
++-------------+      +----------+      +--------------------+
+| Organizer's |----->|  Agent   |----->| Network agent      |
+| agent       |      | gateway  |      |                    |
++-------------+      +----------+      +--------------------+
+~~~
+
+1. The organizer's agent establishes a dialog with the gateway and
+   requests extra capacity at the venue for the hours of the concert.
+
+2. The gateway checks that the request matches the organizer's
+   authorization and forwards it to the network agent.
+
+3. The gateway confirms the added capacity to the organizer's agent.
+
+4. After the concert, the organizer's agent terminates the dialog
+   (CMN-11).
+
 ### Additional Protocol Requirements {#b5-protocol-requirements}
 
 | REQ-ID | Description | Tag |
@@ -595,6 +815,21 @@ in [MCP] and the agent routing patterns discussed in [A2A].
 
 Several requirements in this document concern authorization, delegation, and agent identity (CMN-4, CMN-8, CMN-9, CMN-10, CMN-12, B1-7, B1-8, B2-2 to B2-6, B3-1 to B3-4, B3-6, B3-7, B3-8). These are expected to be addressed in the OAuth and WIMSE Working Groups.
 
+
+# Existing Protocols and Gaps {#gaps}
+
+[A2A] groups related tasks under a context identifier, and [MCP]
+groups the requests between one client and one server under a session.
+Both are scoped to a single hop. An agent that delegates to another
+agent or calls a tool starts a new context or session, and no
+identifier spans the hops. Cancellation is per task and per hop.
+
+The gap is a dialog that spans hops, protocols, and
+connections, with a lifecycle that each participant can verify: the
+dialog requirements in this document (CMN-11, CMN-12, B1-6 to B1-8,
+B3-9, B5-2, B5-3).
+
+This analysis reflects [A2A] and [MCP] at the time of writing.
 
 # Accountability and Auditing {#accountability-auditing}
 
@@ -635,3 +870,7 @@ This document has no IANA actions.
 {:numbered="false"}
 
 Thanks to Borislava Gajic, Julien Maisonneuve, Parisa Foroughi, Laurent Ciavaglia, Nathalie Romo Moreno, Peter Leis, Linda Dunbar, Mikhail Sergeev, Iman Schrock, Sumit Ahuja, Sina Khatibi, Vaishnavi Gudur, Lars Kersten Kroehl, Girish Konda, Nikhil Donapati, Nicholas Templeman, Bradley B, and Douglas Wadkins for the discussions and comments.
+
+The examples in {{simple-single-agent}} and {{authz-checkpoint}} are
+based on scenarios in draft-rosenberg-agentproto-usecases by Jonathan
+Rosenberg and Cullen Jennings.
