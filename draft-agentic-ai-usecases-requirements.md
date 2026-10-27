@@ -215,6 +215,50 @@ correlate the requests it receives with the requests it forwards.
 Neither function requires access to the task context. Each participant
 can use the dialog identifier to retrieve its own task context.
 
+# Deployment Models {#deployment-models}
+
+This section describes the deployment models in which the agents of {{usecases}} can be realized. A single dialog may begin and end within one deployment model or span several ones. None of the requirements in this document assume a particular model.
+
+## Agent Deployment Models {#deployment-models-models}
+
+- **User-terminal deployment**: The agent executes on a device controlled by the user (laptop, a smartphone, vehicle, or any other endpoint). The user may participate directly in dialogs with this agent. Connections from a user-terminal agent are subject to intermittent connectivity, address reassignment after roaming between access networks, and power constraints on long-lived connections.
+
+- **Organization-hosted deployment**: The agent executes within an organization's infrastructure and acts on behalf of that organization or its members. Authorization of the agent is typically anchored in credentials issued by the organization. Dialogs established by organization-hosted agents frequently cross administrative domains.
+
+- **Third-party service deployment**: The agent executes on infrastructure operated by a third party and is authorized to act on behalf of a user or an organization through delegated authorization, commonly OAuth-based delegation as described in {{relationship-oauth-wimse}}
+
+- **Network-operator deployment**: The agent executes in a network operator's domain, or agent functions of the network are reached through an operator-controlled agent gateway, as described for 6G networks in [TR23801]. Agents outside the operator network reach network agents and functions only through the gateway, as described in {{tool-mediation}}.
+
+The models above are not exclusive. For example, a user-terminal agent may delegate to a third-party service, which in turn invokes a tool through an operator gateway. Every hop of that chain may be in a different model.
+
+## Mediation Topologies {#mediation-topologies}
+
+Independent of where agents are deployed, dialogs between them are realized in one of the following topologies:
+
+- **Direct**: The dialog participants connect to each other without an intermediary.
+- **Proxy**: An intermediary forwards dialog messages without terminating the dialog; the dialog endpoints may or may not be aware of the proxy.
+- **Gateway (mediator)**: An intermediary terminates the dialog on one side and establishes a new, linked dialog on the other side, as permitted by B3-9. The intermediary authenticates separately to each side.
+- **Chained**: More than one intermediary or delegated agent participates between the original initiator and the final executor.
+
+{{tool-mediation}} describes the mediator use case. The topologies above apply to dialogs in every deployment model.
+
+## Deployment-Model Requirements {#deployment-model-requirements}
+
+The requirements in this section apply in addition to the common requirements listed into {{common-requirements}}.
+
+| REQ-ID | Description | Tag |
+|--------|-------------|-----|
+| CMN-13 | The protocol MUST NOT assume a particular deployment model. Dialog establishment, modification, termination, and revocation MUST be possible between participants in different deployment models, including across administrative domains. | DEPLOYMENT-MODEL |
+| CMN-14 | The privacy risk analysis of the protocol deliverable MUST cover persistent dialog identifiers in each deployment model of {{deployment-models-models}}, and MUST identify which parties can correlate dialogs through them (e.g., an operator gateway that observes all dialogs crossing it, or a third-party service that hosts many dialogs of one user). | PRIVACY |
+
+## Transport Implications {#deployment-implications}
+
+The deployment model constrains which transport bindings are practical. This section is purely informational and can be used in future stage when developing binding evaluation criteria to select the bindings to specify.
+
+- Dialogs involving user-terminal agents operate across access networks with changing addresses and NAT rebinding. Bindings and keepalive behavior MUST tolerate such changes without tearing down the dialog (see CMN-7, CMN-8).
+- Dialogs crossing an operator gateway traverse a fixed administrative point. Binding selection MUST NOT preclude policy enforcement or lawful interception obligations at such a point, without endorsing any particular interception design.
+- The interactive use case of {{realtime}} requires bindings that can multiplex dialog control with interactive media over a single connection (e.g., bindings over QUIC, HTTP, WebRTC, or MoQ).
+
 # Common Protocol Requirements {#common-requirements}
 
 The following baseline requirements apply to both agent-to-agent and agent-to-tool protocol interactions across all use cases and are not repeated per use case.
@@ -280,8 +324,7 @@ the client application and agent are required to be able to negotiate which
 modalities are active for the dialog.
 
 This use case covers the protocol interface between the client
-application and the agent. The interaction between the user and
-the client application is out of scope. This use case assumes that
+application and the agent. This use case assumes that
 the user communicates with the agent via a client application;
 direct communication between a user and an agent without an
 intermediary client application is not covered in this use case.
@@ -360,6 +403,30 @@ interface each applies to.
 | A1-8  | The protocol is required to support bulk transfer of large data between communicating parties, applicable to both agent-to-tool and agent-to-agent interactions. | Both | Transport |
 | A1-9 | A delegation mechanism is required to be defined by which an agent presents to a tool provider a credential attesting the authorization for the requested tool access, without exposing the client's primary credentials. | Agent-to-Tool | Authentication |
 | A1-10 | The protocol is required to preserve the dialog context when a participant transforms data from one modality to another, such as audio to text. | App/Agent-to-Agent | Dialog |
+
+## Direct User-to-Agent Dialog and Human Handoff {#user-dialog}
+
+### Description
+
+A user establishes a dialog directly with an agent: the user is a dialog participant, not merely the principal on whose behalf an agent acts. During the dialog, either the user or the agent may determine that the task requires a human — for example, the agent cannot complete the task within its authorization, the task is subject to a policy that requires human involvement, or the user explicitly requests a human. The dialog is then handed off: a human joins the existing dialog or a new, linked dialog is created per B3-9, and the
+dialog context established so far is available to the human. When the human withdraws, the dialog may continue between the user and the agent, or terminate.
+
+User interface design is out of scope; this use case is concerned only with the protocol-visible events: participant changes, the identity and authorization of each participant, and the availability of dialog context to a newly joined participant.
+
+### Example
+
+Alice opens her bank's support channel. Her dialog is with the bank's support agent (Alice, Bank Agent). Alice asks to dispute a  transaction; the agent's policy requires a specialist and Alice consents. The agent adds a human specialist, Bob, as a participant. Bob is authenticated as representing the bank (OAuth-authorized credential), and Alice's dialog shows that a handoff occurred and that Bob acts for the bank. Bob sees the dialog context (the transaction reference, the agent's progress notifications). Bob resolves the dispute and withdraws; the dialog continues between Alice and the agent, which confirms resolution and closes the dialog with Alice (CMN-11).
+
+### Additional Protocol Requirements {#user-dialog-requirements}
+
+| REQ-ID | Description | Tag |
+|--------|-------------|-----|
+| A2-1 | The protocol MUST allow a human user to be a dialog participant. The authentication method and its strength used to authenticate the user MUST be visible to the other participants of the dialog. | USER-IN-DIALOG |
+| A2-2 | The protocol MUST allow a participant to be added to an existing dialog, or a new linked dialog to be created per B3-9, such that the added participant has access to the dialog context. | LIFECYCLE |
+| A2-3 | When a handoff occurs, the remaining participants MUST be able to determine that a handoff occurred and the identity of the new participant, including the organization on whose behalf the new participant acts. | ACCOUNTABILITY |
+| A2-4 | A human joining a dialog MUST be able to prove authorization to act for the deploying organization (e.g., OAuth-anchored identity), independent of the dialog's history. | AUTHENTICATION |
+| A2-5 | The protocol MUST allow a user to resume their dialog from a different device than the one on which the dialog was established, with resumption verified per B1-6. | RESUMPTION |
+| A2-6 | A user participant MUST be able to terminate any dialog in which they participate; termination is subject to CMN-11. | LIFECYCLE |
 
 ## Orchestrator and Agent Collaboration {#orchestrator-agent}
 
@@ -810,6 +877,27 @@ capacity at the venue during the concert.
 | B5-1  | The protocol is required to define error response types for request validation failure (rejected due to potential unintended or irreversible side effects) and protocol translation failure (rejected on unsuccessful translation of a request or response between supported protocols), distinct from authorization failure. | Transport, Security |
 | B5-2  | The protocol is required to support continuation of a dialog through a different mediator when the mediator in use fails. | Dialog |
 | B5-3  | The protocol is required to enable a mediator that translates between agent communication protocols to carry the dialog context across the translation, so that participants on each side can correlate the dialog. | Dialog |
+
+## Interactive Real-Time Agent Session {#realtime}
+
+### Description
+
+An agent participates in an interactive session with a user or with other agents where the value of the session depends on low end-to-end latency: for example, an agent providing live interpretation during a conversation, an in-vehicle assistant that must act within a bounded time, or a network agent that adjusts resources in response to live demand. Dialog control messages (establish, modify, progress, cancel) and interactive media or other latency-sensitive data coexist within the same dialog. Session duration may be hours while individual
+interactions are expected to complete in well under a second.
+
+### Example
+
+During a live multilingual customer call, the operator network's interpretation agent joins a dialog between two users (User A, User B) and translates audio in near real time (User A, Interpreter Agent, User B). Mid-dialog, the agent is re-instantiated after a failure; the dialog resumes without the users re-establishing the session, and the dialog's latency class informs the recovery interval. When User A ends the call, the cancellation (CMN-11) reaches the interpreter agent promptly so that transcription stops immediately.
+
+### Additional Protocol Requirements {#realtime-requirements}
+
+| REQ-ID | Description | Tag |
+|--------|-------------|-----|
+| B6-1 | The protocol MUST allow a dialog to be established without application-level handshakes beyond those needed for connection establishment and authentication, so that dialog setup does not add materially to session setup latency. | LATENCY |
+| B6-2 | The protocol MUST allow the dialog initiator to indicate a latency class for the dialog, so that participants and intermediaries can select recovery, keepalive, and failure-detection behavior appropriate to the class. | LATENCY |
+| B6-3 | For dialogs with an interactive latency class, failure detection and resumption (CMN-6 to CMN-8, B1-6) MUST be achievable without user-visible dialog re-establishment, and SHOULD be achievable within a time interval consistent with the indicated latency class. | RECOVERY |
+| B6-4 | Cancellation (CMN-11) propagation for interactive-latency dialogs SHOULD complete within a time interval consistent with the indicated latency class; pending interactive output (e.g., media) from cancelled tasks SHOULD be stopped promptly. | CANCELLATION |
+| B6-5 | The protocol MUST NOT preclude transport bindings that carry dialog control and interactive media in the same connection or correlated connections (e.g., bindings over QUIC, WebTransport, WebRTC, or MoQ). The interactive use cases in this section are input to the binding evaluation of the protocol deliverable. | TRANSPORT |
 
 # Relationship to OAuth and WIMSE Work {#relationship-oauth-wimse}
 
